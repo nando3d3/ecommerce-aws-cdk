@@ -18,8 +18,8 @@ import {
 import { Product } from "/opt/nodejs/productsLayer";
 
 AWSXRay.captureAWS(require("aws-sdk"));
-const ordersDdb = process.env.ORDERSDDB!;
-const productsDdb = process.env.PRODUCTSDDB!;
+const ordersDdb = process.env.ORDERS_DDB!;
+const productsDdb = process.env.PRODUCTS_DDB!;
 
 const ddbClient = new DynamoDB.DocumentClient();
 const orderRepository = new OrderRepository(ddbClient, ordersDdb);

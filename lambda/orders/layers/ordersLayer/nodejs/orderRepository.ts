@@ -56,7 +56,7 @@ export class OrderRepository {
     const data = await this.ddbClient
       .query({
         TableName: this.ordersDdb,
-        KeyConditionExpression: "pk: = :email",
+        KeyConditionExpression: "pk = :email",
         ExpressionAttributeValues: {
           ":email": email,
         },
