@@ -2,6 +2,7 @@ import { DynamoDB, SNS } from "aws-sdk";
 import { Order, OrderRepository } from "/opt/nodejs/ordersLayer";
 import { ProductRepository } from "/opt/nodejs/productsLayer";
 import * as AWSXRay from "aws-xray-sdk";
+import { v4 as uuid } from "uuid";
 import {
   APIGatewayProxyEvent,
   APIGatewayProxyResult,
@@ -90,18 +91,23 @@ export async function handler(
     );
     if (products.length === orderRequest.productIds.length) {
       const order = buildOrder(orderRequest, products);
-      const orderCreated = await orderRepository.createOrder(order);
-      const eventResult = await sendOrderEvent(
-        orderCreated,
+      const orderCreatedPromise = orderRepository.createOrder(order);
+      const eventResultPromise = sendOrderEvent(
+        order,
         OrderEventType.CREATED,
         lambdaRequestId,
       );
+
+      const results = await Promise.all([
+        orderCreatedPromise,
+        eventResultPromise,
+      ]);
       console.log(
-        `Order created event sent - OrderId: ${orderCreated.sk} - MessageId: ${eventResult.MessageId}`,
+        `Order created event sent - OrderId: ${order.sk} - MessageId: ${results[1].MessageId}`,
       );
       return {
         statusCode: 201,
-        body: JSON.stringify(convertToOrderResponse(orderCreated)),
+        body: JSON.stringify(convertToOrderResponse(order)),
       };
     } else {
       return {
@@ -118,7 +124,7 @@ export async function handler(
       const orderDeleted = await orderRepository.deleteOrder(email, orderId);
       const eventResult = await sendOrderEvent(
         orderDeleted,
-        OrderEventType.CREATED,
+        OrderEventType.DELETED,
         lambdaRequestId,
       );
       console.log(
@@ -213,6 +219,8 @@ function buildOrder(orderRequest: OrderRequest, products: Product[]): Order {
   });
   const order: Order = {
     pk: orderRequest.email,
+    sk: uuid(),
+    createAt: Date.now(),
     billing: {
       payment: orderRequest.payment,
       totalPrice: totalPrice,
