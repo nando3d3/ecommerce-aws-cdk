@@ -4,6 +4,7 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import * as iam from "aws-cdk-lib/aws-iam";
 // import *
 
 interface ProductsAppStackProps extends cdk.StackProps {
@@ -129,5 +130,16 @@ export class ProductsAppStack extends cdk.Stack {
     );
     this.productsDbd.grantWriteData(this.productsAdminHandler);
     productEventsHandler.grantInvoke(this.productsAdminHandler);
+
+    const eventsDdbPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["dynamodb:PutItem"],
+      resources: [props.eventsDdb.tableArn],
+      conditions: {
+        ["ForAllValues:StringLike"]: {
+          "dynamodb:LeadingKeys": ["#product_*"],
+        },
+      },
+    });
   }
 }
