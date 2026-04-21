@@ -162,5 +162,30 @@ export class OrdersAppStack extends cdk.Stack {
       },
     });
     orderEventsHandler.addToRolePolicy(eventsDdbPolicy);
+
+    const billingHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "BillingFunction",
+      {
+        functionName: "BillingFunction",
+        entry: "lambda/orders/billingFunction.ts",
+        handler: "handler",
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(5),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+      },
+    );
+    ordersTopic.addSubscription(
+      new subs.LambdaSubscription(billingHandler, {
+        filterPolicy: {
+          eventType: sns.SubscriptionFilter.stringFilter({
+            allowlist: ["ORDER_CREATED"],
+          }),
+        },
+      }),
+    );
   }
 }
