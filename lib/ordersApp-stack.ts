@@ -199,7 +199,7 @@ export class OrdersAppStack extends cdk.Stack {
     ordersTopic.addSubscription(
       new subs.SqsSubscription(orderEventsQueue, {
         filterPolicy: {
-          EventType: sns.SubscriptionFilter.stringFilter({
+          eventType: sns.SubscriptionFilter.stringFilter({
             allowlist: ["ORDER_CREATED"],
           }),
         },
@@ -225,7 +225,11 @@ export class OrdersAppStack extends cdk.Stack {
       },
     );
     orderEmailsHandler.addEventSource(
-      new lambdaEventSource.SqsEventSource(orderEventsQueue),
+      new lambdaEventSource.SqsEventSource(orderEventsQueue, {
+        batchSize: 5,
+        enabled: true,
+        maxBatchingWindow: cdk.Duration.minutes(1),
+      }),
     );
     orderEventsQueue.grantConsumeMessages(orderEmailsHandler);
   }
