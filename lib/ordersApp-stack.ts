@@ -9,6 +9,7 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as lambdaEventSource from "aws-cdk-lib/aws-lambda-event-sources";
 import { Construct } from "constructs";
+import { EventType } from "aws-cdk-lib/aws-s3";
 
 interface OrdersAppStackProps extends cdk.StackProps {
   productsDdb: dynamodb.Table;
@@ -195,13 +196,21 @@ export class OrdersAppStack extends cdk.Stack {
       enforceSSL: false,
       encryption: sqs.QueueEncryption.UNENCRYPTED,
     });
-    ordersTopic.addSubscription(new subs.SqsSubscription(orderEventsQueue));
+    ordersTopic.addSubscription(
+      new subs.SqsSubscription(orderEventsQueue, {
+        filterPolicy: {
+          EventType: sns.SubscriptionFilter.stringFilter({
+            allowlist: ["ORDER_CREATED"],
+          }),
+        },
+      }),
+    );
 
     const orderEmailsHandler = new lambdaNodeJS.NodejsFunction(
       this,
       "OrderEmailsFunction",
       {
-        functionName: "orderEmailsFunction",
+        functionName: "OrderEmailsFunction",
         entry: "lambda/orders/orderEmailsFunction.ts",
         handler: "handler",
         memorySize: 512,
