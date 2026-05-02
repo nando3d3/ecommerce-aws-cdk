@@ -14,6 +14,8 @@ import { EventType } from "aws-cdk-lib/aws-s3";
 interface OrdersAppStackProps extends cdk.StackProps {
   productsDdb: dynamodb.Table;
   eventsDdb: dynamodb.Table;
+  /** Verified SES identity for order notification emails */
+  sesFromEmail: string;
 }
 
 export class OrdersAppStack extends cdk.Stack {
@@ -21,6 +23,11 @@ export class OrdersAppStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: OrdersAppStackProps) {
     super(scope, id, props);
+
+    const sesFromEmail = props.sesFromEmail.trim();
+    if (!sesFromEmail) {
+      throw new Error("OrdersAppStack: sesFromEmail must be a non-empty string");
+    }
 
     const ordersDdb = new dynamodb.Table(this, "OrderDdb", {
       tableName: "orders",
@@ -232,6 +239,9 @@ export class OrdersAppStack extends cdk.Stack {
         layers: [orderEventsLayer],
         tracing: lambda.Tracing.ACTIVE,
         insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+        environment: {
+          SES_FROM_EMAIL: sesFromEmail,
+        },
       },
     );
     orderEmailsHandler.addEventSource(
@@ -242,5 +252,11 @@ export class OrdersAppStack extends cdk.Stack {
       }),
     );
     orderEventsQueue.grantConsumeMessages(orderEmailsHandler);
+    const orderEmailSesPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["ses:SendEmail", "ses:SendRawEmail"],
+      resources: ["*"],
+    });
+    orderEmailsHandler.addToRolePolicy(orderEmailSesPolicy);
   }
 }

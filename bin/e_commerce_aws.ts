@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "dotenv/config";
 import * as cdk from "aws-cdk-lib/core";
 import { ProductsAppStack } from "../lib/productsApp-stack";
 import { ECommerceApiStack } from "../lib/ecommerceApi-stack";
@@ -46,11 +47,19 @@ const ordersAppLayersStack = new OrdersAppLayersStack(app, "OrdersAppLayers", {
   env: env,
 });
 
+const sesFromEmail = process.env.SES_FROM_EMAIL?.trim();
+if (!sesFromEmail) {
+  throw new Error(
+    "SES_FROM_EMAIL must be set when synthesizing the app (see .env.example).",
+  );
+}
+
 const ordersAppStack = new OrdersAppStack(app, "OrdersApp", {
   tags: tags,
   env: env,
   productsDdb: productsAppStack.productsDbd,
   eventsDdb: eventsDdbStack.table,
+  sesFromEmail,
 });
 
 ordersAppStack.addDependency(productsAppStack);
