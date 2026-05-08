@@ -20,13 +20,16 @@ interface OrdersAppStackProps extends cdk.StackProps {
 
 export class OrdersAppStack extends cdk.Stack {
   readonly ordersHandler: lambdaNodeJS.NodejsFunction;
+  readonly orderEventsFetchHandler: lambdaNodeJS.NodejsFunction;
 
   constructor(scope: Construct, id: string, props: OrdersAppStackProps) {
     super(scope, id, props);
 
     const sesFromEmail = props.sesFromEmail.trim();
     if (!sesFromEmail) {
-      throw new Error("OrdersAppStack: sesFromEmail must be a non-empty string");
+      throw new Error(
+        "OrdersAppStack: sesFromEmail must be a non-empty string",
+      );
     }
 
     const ordersDdb = new dynamodb.Table(this, "OrderDdb", {
@@ -258,5 +261,33 @@ export class OrdersAppStack extends cdk.Stack {
       resources: ["*"],
     });
     orderEmailsHandler.addToRolePolicy(orderEmailSesPolicy);
+
+    this.orderEventsFetchHandler = new lambdaNodeJS.NodejsFunction(
+      this,
+      "OrderEventsFetchHandler",
+      {
+        functionName: "OrderEventsFetchHandler",
+        entry: "lambda/orders/orderEventsFetchFunctions.ts",
+        handler: "handler",
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          EVENTS_DDB: props.eventsDdb.tableName,
+        },
+        layers: [orderEventsRepositoryLayer],
+        tracing: lambda.Tracing.ACTIVE,
+        insightsVersion: lambda.LambdaInsightsVersion.VERSION_1_0_119_0,
+      },
+    );
+    const eventsFetchDdbPolicy = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["dynamodb:Query"],
+      resources: [`${props.eventsDdb.tableArn}/index/emailIndex`],
+    });
+    this.orderEventsFetchHandler.addToRolePolicy(eventsFetchDdbPolicy);
   }
 }
