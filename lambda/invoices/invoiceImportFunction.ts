@@ -1,14 +1,12 @@
 import { Context, S3Event, S3EventRecord } from "aws-lambda";
 import * as AWSXRay from "aws-xray-sdk";
 import { ApiGatewayManagementApi, DynamoDB, S3 } from "aws-sdk";
-import { v4 as uuid } from "uuid";
 import {
   InvoiceTransactionStatus,
   InvoiceTransactionRepository,
 } from "/opt/nodejs/invoiceTransaction";
 import { InvoiceWSService } from "/opt/nodejs/invoiceWSConnection";
 import { InvoiceFile, InvoiceRepository } from "/opt/nodejs/invoiceRepository";
-import { Product } from "aws-cdk-lib/aws-servicecatalog";
 
 AWSXRay.captureAWS(require("aws-sdk"));
 
@@ -41,9 +39,14 @@ export async function handler(event: S3Event, context: Context): Promise<void> {
 }
 
 async function processRecord(record: S3EventRecord) {
-  const key = record.s3.object.key;
+  const key = decodeURIComponent(
+    record.s3.object.key.replace(/\+/g, " "),
+  );
 
   try {
+    console.log(
+      `Processing upload bucket=${record.s3.bucket.name} key=${key} table=${invoicesDdb}`,
+    );
     const invoiceTransaction =
       await invoiceTransactionRepository.getInvoiceTransaction(key);
     if (
@@ -115,6 +118,6 @@ async function processRecord(record: S3EventRecord) {
       sendStatusPromise,
     ]);
   } catch (error) {
-    console.log((<Error>error).message);
+    console.error(`Import failed for key ${key}:`, error);
   }
 }

@@ -55,6 +55,9 @@ export class InvoiceTransactionRepository {
     if (data.Item) {
       return data.Item as InvoiceTransaction;
     }
+    console.error(
+      `Invoice transaction not found in table ${this.invoiceTransactionDdb} for key: ${key}`,
+    );
     throw new Error("Invoice transaction not found");
   }
 
@@ -70,7 +73,7 @@ export class InvoiceTransactionRepository {
             pk: "#transaction",
             sk: key,
           },
-          ConditionExpression: "attribuite_exists(pk)",
+          ConditionExpression: "attribute_exists(pk)",
           UpdateExpression: "set transactionStatus = :s",
           ExpressionAttributeValues: {
             ":s": status,
@@ -78,9 +81,17 @@ export class InvoiceTransactionRepository {
         })
         .promise();
       return true;
-    } catch (ConditionalCheckFailedException) {
-      console.error("Invoice transaction not found");
-      return false;
+    } catch (error: unknown) {
+      const err = error as { code?: string; message?: string };
+      if (err.code === "ConditionalCheckFailedException") {
+        console.error(`Invoice transaction not found for update: ${key}`);
+        return false;
+      }
+      console.error(
+        `Failed to update transaction ${key} in ${this.invoiceTransactionDdb}:`,
+        err.message ?? error,
+      );
+      throw error;
     }
   }
 }

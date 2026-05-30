@@ -52,7 +52,7 @@ export async function handler(
   });
   //   Create invoice transaction
   const timestamp = Date.now();
-  const ttl = ~~(timestamp / 1000 + 60 * 2);
+  const ttl = ~~(timestamp / 1000 + expires);
   await invoiceTransactionRepository.createInvoiceTransaction({
     pk: "#transaction",
     sk: key,
