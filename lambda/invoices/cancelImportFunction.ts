@@ -78,6 +78,8 @@ export async function handler(
     );
   }
 
+  invoiceWSService.disconnectClient(connectionId);
+
   return {
     statusCode: 200,
     body: "OK",
