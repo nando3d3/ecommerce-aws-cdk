@@ -11,9 +11,11 @@ import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import { Construct } from "constructs";
 import * as ssm from "aws-cdk-lib/aws-ssm";
+import * as events from "aws-cdk-lib/aws-events";
 
 interface InvoiceWSApiStackProps extends cdk.StackProps {
   eventsDdb: dynamodb.Table;
+  auditBus: events.EventBus;
 }
 
 export class InvoiceWSApiStack extends cdk.Stack {
@@ -211,10 +213,12 @@ export class InvoiceWSApiStack extends cdk.Stack {
           INVOICE_DDB: invoiceDdb.tableName,
           BUCKET_NAME: bucket.bucketName,
           INVOICE_WSAPI_ENDPOINT: wsApiEndpoint,
+          AUDIT_BUS_NAME: props.auditBus.eventBusName,
         },
       },
     );
     invoiceDdb.grantReadWriteData(invoiceImportlHandler);
+    props.auditBus.grantPutEventsTo(invoiceImportlHandler);
 
     bucket.addEventNotification(
       s3.EventType.OBJECT_CREATED_PUT,
@@ -293,10 +297,12 @@ export class InvoiceWSApiStack extends cdk.Stack {
         environment: {
           EVENTS_DDB: props.eventsDdb.tableName,
           INVOICE_WSAPI_ENDPOINT: wsApiEndpoint,
+          AUDIT_BUS_NAME: props.auditBus.eventBusName,
         },
         layers: [invoiceWSConnectionLayer],
       },
     );
+    props.auditBus.grantPutEventsTo(invoiceEventsHandler);
 
     const eventsDdbPolicy = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,

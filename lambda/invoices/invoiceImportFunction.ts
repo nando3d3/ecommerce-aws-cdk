@@ -1,6 +1,6 @@
 import { Context, S3Event, S3EventRecord } from "aws-lambda";
 import * as AWSXRay from "aws-xray-sdk";
-import { ApiGatewayManagementApi, DynamoDB, S3 } from "aws-sdk";
+import { ApiGatewayManagementApi, DynamoDB, EventBridge, S3 } from "aws-sdk";
 import {
   InvoiceTransactionStatus,
   InvoiceTransactionRepository,
@@ -12,12 +12,14 @@ AWSXRay.captureAWS(require("aws-sdk"));
 
 const invoicesDdb = process.env.INVOICE_DDB!;
 const invoiceWsApiEndpoint = process.env.INVOICE_WSAPI_ENDPOINT!.substring(6);
+const auditBusName = process.env.AUDIT_BUS_NAME!;
 
 const s3Client = new S3();
 const ddbClient = new DynamoDB.DocumentClient();
 const apigwManagementApi = new ApiGatewayManagementApi({
   endpoint: invoiceWsApiEndpoint,
 });
+const eventBridgeClient = new EventBridge();
 
 const invoiceTransactionRepository = new InvoiceTransactionRepository(
   ddbClient,
@@ -120,6 +122,27 @@ async function processRecord(record: S3EventRecord) {
       console.error(
         `Invoice import failed - non valid invoice number - TransactionId: ${key}`,
       );
+
+      const putEventsPromise = eventBridgeClient
+        .putEvents({
+          Entries: [
+            {
+              Source: "app.invoice",
+              EventBusName: auditBusName,
+              DetailType: "invoice",
+              Time: new Date(),
+              Detail: JSON.stringify({
+                errorDetail: "FAIL_NO_INVOICE_NUMBER",
+                info: {
+                  invoiceKey: key,
+                  customerName: invoice.customerName,
+                },
+              }),
+            },
+          ],
+        })
+        .promise();
+
       const sendStatusPromise = invoiceWSService.sendInvoiceStatus(
         key,
         invoiceTransaction.connectionId,
@@ -131,7 +154,11 @@ async function processRecord(record: S3EventRecord) {
           InvoiceTransactionStatus.NON_VALID_INVOICE_NUMBER,
         );
 
-      await Promise.all([sendStatusPromise, updateInvoicePromise]);
+      await Promise.all([
+        sendStatusPromise,
+        updateInvoicePromise,
+        putEventsPromise,
+      ]);
     }
   } catch (error) {
     console.error(`Import failed for key ${key}:`, error);
